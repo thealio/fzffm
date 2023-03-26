@@ -6,14 +6,17 @@
 # |_|   /___| |_|   |_|   |_| |_| |_|
 #
 # Fuzzy Finder File Manager                                    
+#
 # Created by Christos Angelopoulos in 2021, under GNU GENERAL PUBLIC LICENSE
-#load config variables from config file
+# https://github.com/christosangelopoulos/fzffm
+# https://gitlab.com/christosangel/uberfuzz
+#
+# Load config variables from config file
+# Requires uberzurg installed for previews in other termilals
 #
 # General keys
 # TAB    : mark/unmark item
 # CTRL+H : show commands (fzffm.conf)
-#
-#
 #
 declare -A V
 TOTAL="$(cat $HOME/.config/fzffm/fzffm.conf|wc -l)"
@@ -81,12 +84,77 @@ kitty icat --transfer-mode file --place $3x$4@$1x$2 --scale-up --clear  "$5"
 export -f draw_preview draw_line fillout boximg create_thumb 
 
 ######################################################
+##   Ueberzug
+######################################################
+declare -r -x UEBERZUG_FIFO="$(mktemp --dry-run )"
+function start_ueberzug {
+    mkfifo "${UEBERZUG_FIFO}"
+    <"${UEBERZUG_FIFO}" \
+        ueberzug layer --parser bash --silent &
+    # prevent EOF
+    3>"${UEBERZUG_FIFO}" \
+        exec
+}
+
+function finalise {
+    3>&- \
+        exec
+    &>/dev/null \
+        rm "${UEBERZUG_FIFO}"
+    &>/dev/null \
+        kill $(jobs -p)
+}
+function draw_preview {
+#sample draw_preview 35 35 90 3 /path/image.jpg
+
+    >"${UEBERZUG_FIFO}" declare -A -p cmd=( \
+        [action]=add [identifier]="preview" \
+        [x]="$1" [y]="$2" \
+        [width]="$3" [height]="$4" \
+        [scaler]=fit_contain [scaling_position_x]=10 [scaling_position_y]=10 \
+        [path]="$5")
+
+}
+function draw_icon {
+ if [ ! -e $HOME/.cache/uberfuzz/icons/$BACKGROUNDCOLOR/ ]
+ then
+		mkdir $HOME/.cache/uberfuzz/icons/$BACKGROUNDCOLOR/
+	fi
+ if [ ! -e $HOME/.cache/uberfuzz/icons/$BACKGROUNDCOLOR/"$5" ]
+ then
+ 	if [ -e $HOME/.cache/uberfuzz/prefer/$5 ]
+ 	then
+ 		LOCATED_ICON=$HOME/.cache/uberfuzz/prefer/$5
+ 	else
+ 		LOCATED_ICON="$(locate -i $5|grep "256"|grep -v "timeshift"|grep -v "HighContrast"|head -1)"
+			if [[ "$LOCATED_ICON" == "" ]]
+			then
+				echo -e " $5 not found.\n Place prefered icon\nin $HOME/.cache/uberfuzz/icons/prefer/,\n named $5"
+			fi
+		fi
+ convert -thumbnail 256 "$LOCATED_ICON" -background "$BACKGROUNDCOLOR" -flatten $HOME/.cache/uberfuzz/icons/$BACKGROUNDCOLOR/"$5";
+ fi
+
+    >"${UEBERZUG_FIFO}" declare -A -p cmd=( \
+        [action]=add [identifier]="preview" \
+        [x]="$1" [y]="$2" \
+        [width]="$3" [height]="$4" \
+        [scaler]=fit_contain [scaling_position_x]=10 [scaling_position_y]=10 \
+        [path]="$HOME/.cache/uberfuzz/icons/$BACKGROUNDCOLOR/$5")
+
+}
+
+export -f draw_preview draw_line fillout boximg finalise start_ueberzug draw_icon
+
+
+######################################################
 cd
 #main loop
 	while true
 	do
-
-	P="$(ls -a |fzf \
+	finalise
+	start_ueberzug
+	P="$(ls -a -v --group-directories-first |fzf \
 	--header="$PWD"  \
 	--layout=reverse \
 	--height=100% \
@@ -124,7 +192,7 @@ cd
 	; echo -e "File {}"|fillout \
 	; draw_line ╰ 43 ┬──────────┬╯ \
 	; draw_line ╭ 43 ╯Properties╰╮ ;  echo -e "Mode : "$(ls -l {} |sed "s/ .*//")|fillout ; i={} \
-	; echo -e "Type : "$(file --mime-type -b ${i##*.})|fillout ; echo -e "Size :" $(ls -shQ {}|sed "s/ .*$//g")|fillout ; echo -e "Date :" $(stat -c '%y' {} |sed "s/ .*$//")|fillout ; echo -e "Owner:" $(stat --printf='%U' {})|fillout ;  echo -e "Group:" $(stat --printf='%G' {})|fillout ; echo -e "Name :" {}|fillout ; draw_line ╰ 43 ╯ \
+	; echo -e "Type : "$(file --mime-type -b "${i##*,_- .}")|fillout ; echo -e "Size :" $(ls -shQ {}|sed "s/ .*$//g")|fillout ; echo -e "Date :" $(stat -c '%y' {} |sed "s/ .*$//")|fillout ; echo -e "Owner:" $(stat --printf='%U' {})|fillout ;  echo -e "Group:" $(stat --printf='%G' {})|fillout ; echo -e "Name :" {}|fillout ; draw_line ╰ 43 ╯ \
 	; if [[ {} == *".jpg" ]] || [[ {} == *".jpeg" ]] ||[[ {} == *".png" ]] || [[ {} == *".svg" ]] ||[[ {} == *".JPG" ]] || [[ {} == *".JPEG" ]] \
 	; then if [ ! -e $HOME/.cache/fzffm/thumbnails/"$(shasum {}|sed "s/ .*$//")".png ] && [ -s {} ]; then 	convert -thumbnail x362 {}  $HOME/.cache/fzffm/thumbnails/"$(shasum {}|sed "s/ .*$//")".png \
 	;	fi \
