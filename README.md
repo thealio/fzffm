@@ -11,7 +11,8 @@ It is a simple script in bash.This command line file manager provides image prev
 ![image 2](screenshots/screenshot 2.png)
 
  The terminal emulator used is **kitty** (thus the easy image preview).
-Shortly a new edition will be uploaded to run this script on *any  other known terminal emulator*, using **uberzug**.
+
+Experimental preview support addedd to run this script on *any  other known terminal emulator*, using **uberzug**.
 
 ![image 3](screenshots/screenshot 3.png)
 
